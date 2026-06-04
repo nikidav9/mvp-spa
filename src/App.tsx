@@ -228,7 +228,7 @@ export default function App() {
                 />
               </div>
               <div className="form-group">
-                <label>Рабочая смена</label>
+                <label>Яндекс смена <span className="label-hint">(Введите диапазон часов, которую работал сотрудник / была открыта смена)</span></label>
                 <div className="shift-row">
                   <input
                     type="time"

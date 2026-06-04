@@ -127,6 +127,7 @@ body {
 
 .form-group { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
 .form-group label { font-size: 0.85rem; color: var(--text2); font-weight: 500; }
+.label-hint { font-size: 0.75rem; color: #64748b; font-weight: 400; margin-left: 4px; }
 .form-group input {
   background: var(--bg3);
   border: 1px solid var(--border);
