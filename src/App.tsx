@@ -68,11 +68,6 @@ export default function App() {
     return Math.round(mins / 60 * 100) / 100
   }
 
-  function handleShiftChange(start: string, end: string) {
-    const h = calcShiftHours(start, end)
-    if (h !== null) setHours(String(h))
-  }
-
   const [plan, setPlan] = useState<number | null>(() => {
     const v = localStorage.getItem(PLAN_KEY)
     return v ? parseFloat(v) : null
@@ -113,24 +108,29 @@ export default function App() {
     return m
   }, [records])
 
+  const shiftHours = calcShiftHours(shiftStart, shiftEnd) ?? 0
+
+  const totalHours = useMemo(() => {
+    const h = parseFloat(hours) || 0
+    return h + shiftHours
+  }, [hours, shiftHours])
+
   const previewIph = useMemo(() => {
     const o = parseFloat(orders)
-    const h = parseFloat(hours)
-    if (o > 0 && h > 0) return o / h
+    if (o > 0 && totalHours > 0) return o / totalHours
     return null
-  }, [orders, hours])
+  }, [orders, totalHours])
 
   function handleSave() {
     const o = parseFloat(orders)
-    const h = parseFloat(hours)
     if (!date) { setError('Укажите дату'); return }
     if (!o || o <= 0) { setError('Укажите количество заказов'); return }
-    if (!h || h <= 0) { setError('Укажите рабочее время'); return }
+    if (totalHours <= 0) { setError('Укажите рабочее время'); return }
     setError('')
-    const iph = o / h
+    const iph = o / totalHours
     setRecords(prev => {
       const filtered = prev.filter(r => r.date !== date)
-      return [...filtered, { date, orders: o, hours: h, iph }].sort((a, b) => a.date.localeCompare(b.date))
+      return [...filtered, { date, orders: o, hours: totalHours, iph }].sort((a, b) => a.date.localeCompare(b.date))
     })
     setOrders('')
     setHours('')
@@ -233,21 +233,21 @@ export default function App() {
                   <input
                     type="time"
                     value={shiftStart}
-                    onChange={e => { setShiftStart(e.target.value); handleShiftChange(e.target.value, shiftEnd) }}
+                    onChange={e => setShiftStart(e.target.value)}
                   />
                   <span className="shift-sep">—</span>
                   <input
                     type="time"
                     value={shiftEnd}
-                    onChange={e => { setShiftEnd(e.target.value); handleShiftChange(shiftStart, e.target.value) }}
+                    onChange={e => setShiftEnd(e.target.value)}
                   />
-                  {calcShiftHours(shiftStart, shiftEnd) !== null && (
-                    <span className="shift-calc">{calcShiftHours(shiftStart, shiftEnd)} ч</span>
+                  {shiftHours > 0 && (
+                    <span className="shift-calc">{shiftHours} ч</span>
                   )}
                 </div>
               </div>
               <div className="form-group">
-                <label>Рабочее время (часы)</label>
+                <label>Рабочее время (часы штатных сотрудников)</label>
                 <input
                   type="number"
                   min="0.5"
@@ -257,6 +257,11 @@ export default function App() {
                   onChange={e => setHours(e.target.value)}
                 />
               </div>
+              {shiftHours > 0 && (parseFloat(hours) || 0) > 0 && (
+                <div className="total-hours">
+                  Итого часов: <strong>{totalHours}</strong>
+                </div>
+              )}
               {previewIph !== null && (
                 <div className="preview-iph">
                   IPH = <strong style={{ color: iphColor(previewIph) }}>{previewIph.toFixed(1)}</strong>
