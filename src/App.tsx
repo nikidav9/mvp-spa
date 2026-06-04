@@ -34,6 +34,12 @@ function iphColor(iph: number): string {
   return '#ef4444'
 }
 
+function avgColor(avg: number, plan: number): string {
+  if (avg >= plan) return '#22c55e'
+  if (avg >= plan - 10) return '#f59e0b'
+  return '#ef4444'
+}
+
 export default function App() {
   const [records, setRecords] = useState<DayRecord[]>(() => {
     try {
@@ -154,7 +160,7 @@ export default function App() {
             {avg !== null && (
               <div className="avg-card">
                 <div className="avg-label">Средний IPH</div>
-                <div className="avg-value" style={{ color: plan !== null ? (avg >= plan ? '#22c55e' : '#ef4444') : iphColor(avg) }}>
+                <div className="avg-value" style={{ color: plan !== null ? avgColor(avg, plan) : iphColor(avg) }}>
                   {avg.toFixed(1)}
                 </div>
                 <div className="avg-sub">за {records.length} {records.length === 1 ? 'день' : records.length < 5 ? 'дня' : 'дней'}</div>
@@ -180,7 +186,7 @@ export default function App() {
                   )}
                 </div>
                 {plan !== null && avg !== null && (
-                  <div className="plan-diff" style={{ color: avg >= plan ? '#22c55e' : '#ef4444' }}>
+                  <div className="plan-diff" style={{ color: avgColor(avg, plan) }}>
                     {avg >= plan ? `+${(avg - plan).toFixed(1)} выше плана` : `${(avg - plan).toFixed(1)} ниже плана`}
                   </div>
                 )}
