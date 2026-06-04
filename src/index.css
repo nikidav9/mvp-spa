@@ -169,6 +169,37 @@ body {
 
 .existing-note { font-size: 0.8rem; color: var(--text2); margin-top: 8px; text-align: center; }
 
+.shift-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.shift-row input[type=time] {
+  flex: 1;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 10px;
+  color: var(--text);
+  font-size: 0.95rem;
+  outline: none;
+  transition: border-color 0.15s;
+  width: auto;
+}
+.shift-row input[type=time]:focus { border-color: var(--accent); }
+.shift-row input[type=time]::-webkit-calendar-picker-indicator { filter: invert(0.7); cursor: pointer; }
+.shift-sep { color: var(--text2); font-size: 1rem; flex-shrink: 0; }
+.shift-calc {
+  background: var(--accent);
+  color: #fff;
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
 /* Calendar */
 .calendar-card { }
 .cal-header {

@@ -54,8 +54,24 @@ export default function App() {
   const [date, setDate] = useState(today)
   const [orders, setOrders] = useState('')
   const [hours, setHours] = useState('')
+  const [shiftStart, setShiftStart] = useState('')
+  const [shiftEnd, setShiftEnd] = useState('')
   const [error, setError] = useState('')
   const [saved, setSaved] = useState(false)
+
+  function calcShiftHours(start: string, end: string): number | null {
+    if (!start || !end) return null
+    const [sh, sm] = start.split(':').map(Number)
+    const [eh, em] = end.split(':').map(Number)
+    let mins = (eh * 60 + em) - (sh * 60 + sm)
+    if (mins <= 0) mins += 24 * 60
+    return Math.round(mins / 60 * 100) / 100
+  }
+
+  function handleShiftChange(start: string, end: string) {
+    const h = calcShiftHours(start, end)
+    if (h !== null) setHours(String(h))
+  }
 
   const [plan, setPlan] = useState<number | null>(() => {
     const v = localStorage.getItem(PLAN_KEY)
@@ -118,6 +134,8 @@ export default function App() {
     })
     setOrders('')
     setHours('')
+    setShiftStart('')
+    setShiftEnd('')
     setDate(today)
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
@@ -208,6 +226,25 @@ export default function App() {
                   value={orders}
                   onChange={e => setOrders(e.target.value)}
                 />
+              </div>
+              <div className="form-group">
+                <label>Рабочая смена</label>
+                <div className="shift-row">
+                  <input
+                    type="time"
+                    value={shiftStart}
+                    onChange={e => { setShiftStart(e.target.value); handleShiftChange(e.target.value, shiftEnd) }}
+                  />
+                  <span className="shift-sep">—</span>
+                  <input
+                    type="time"
+                    value={shiftEnd}
+                    onChange={e => { setShiftEnd(e.target.value); handleShiftChange(shiftStart, e.target.value) }}
+                  />
+                  {calcShiftHours(shiftStart, shiftEnd) !== null && (
+                    <span className="shift-calc">{calcShiftHours(shiftStart, shiftEnd)} ч</span>
+                  )}
+                </div>
               </div>
               <div className="form-group">
                 <label>Рабочее время (часы)</label>
