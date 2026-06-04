@@ -276,11 +276,6 @@ export default function App() {
                   )
                 })}
               </div>
-              <div className="cal-legend">
-                <span style={{ color: '#22c55e' }}>● ≥50</span>
-                <span style={{ color: '#f59e0b' }}>● 30–49</span>
-                <span style={{ color: '#ef4444' }}>● &lt;30</span>
-              </div>
             </div>
           </div>
         </div>
