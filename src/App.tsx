@@ -257,7 +257,7 @@ export default function App() {
                   const rec = recordMap[dateStr]
                   const isToday = dateStr === today
                   const isSelected = dateStr === date
-                  const color = rec ? iphColor(rec.iph) : null
+                  const color = rec ? (plan !== null ? avgColor(rec.iph, plan) : iphColor(rec.iph)) : null
                   return (
                     <div
                       key={dateStr}
