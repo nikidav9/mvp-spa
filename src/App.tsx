@@ -8,6 +8,7 @@ interface DayRecord {
 }
 
 const STORAGE_KEY = 'warehouse_iph_records'
+const PLAN_KEY = 'warehouse_iph_plan'
 
 function toDateStr(d: Date): string {
   return d.toISOString().slice(0, 10)
@@ -50,12 +51,34 @@ export default function App() {
   const [error, setError] = useState('')
   const [saved, setSaved] = useState(false)
 
+  const [plan, setPlan] = useState<number | null>(() => {
+    const v = localStorage.getItem(PLAN_KEY)
+    return v ? parseFloat(v) : null
+  })
+  const [planInput, setPlanInput] = useState(() => {
+    const v = localStorage.getItem(PLAN_KEY)
+    return v ? v : ''
+  })
+  const [editingPlan, setEditingPlan] = useState(false)
+
   const [calYear, setCalYear] = useState(() => new Date().getFullYear())
   const [calMonth, setCalMonth] = useState(() => new Date().getMonth())
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(records))
   }, [records])
+
+  function savePlan() {
+    const v = parseFloat(planInput)
+    if (v > 0) {
+      setPlan(v)
+      localStorage.setItem(PLAN_KEY, String(v))
+    } else {
+      setPlan(null)
+      localStorage.removeItem(PLAN_KEY)
+    }
+    setEditingPlan(false)
+  }
 
   const avg = useMemo(() => {
     if (records.length === 0) return null
@@ -131,10 +154,36 @@ export default function App() {
             {avg !== null && (
               <div className="avg-card">
                 <div className="avg-label">Средний IPH</div>
-                <div className="avg-value" style={{ color: iphColor(avg) }}>
+                <div className="avg-value" style={{ color: plan !== null ? (avg >= plan ? '#22c55e' : '#ef4444') : iphColor(avg) }}>
                   {avg.toFixed(1)}
                 </div>
                 <div className="avg-sub">за {records.length} {records.length === 1 ? 'день' : records.length < 5 ? 'дня' : 'дней'}</div>
+                <div className="plan-divider" />
+                <div className="plan-row">
+                  <span className="plan-label">План</span>
+                  {editingPlan ? (
+                    <input
+                      className="plan-input"
+                      type="number"
+                      min="1"
+                      step="0.1"
+                      autoFocus
+                      value={planInput}
+                      onChange={e => setPlanInput(e.target.value)}
+                      onBlur={savePlan}
+                      onKeyDown={e => { if (e.key === 'Enter') savePlan(); if (e.key === 'Escape') setEditingPlan(false) }}
+                    />
+                  ) : (
+                    <button className="plan-value" onClick={() => setEditingPlan(true)}>
+                      {plan !== null ? plan.toFixed(1) : <span className="plan-empty">нажми чтобы задать</span>}
+                    </button>
+                  )}
+                </div>
+                {plan !== null && avg !== null && (
+                  <div className="plan-diff" style={{ color: avg >= plan ? '#22c55e' : '#ef4444' }}>
+                    {avg >= plan ? `+${(avg - plan).toFixed(1)} выше плана` : `${(avg - plan).toFixed(1)} ниже плана`}
+                  </div>
+                )}
               </div>
             )}
 
