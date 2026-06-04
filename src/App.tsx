@@ -306,7 +306,7 @@ export default function App() {
                       <td>{r.orders}</td>
                       <td>{r.hours}</td>
                       <td>
-                        <span className="iph-badge" style={{ background: iphColor(r.iph) + '22', color: iphColor(r.iph) }}>
+                        <span className="iph-badge" style={{ background: (plan !== null ? avgColor(r.iph, plan) : iphColor(r.iph)) + '22', color: plan !== null ? avgColor(r.iph, plan) : iphColor(r.iph) }}>
                           {r.iph.toFixed(1)}
                         </span>
                       </td>
