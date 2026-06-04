@@ -256,15 +256,19 @@ export default function App() {
                   const dateStr = `${calYear}-${String(calMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
                   const rec = recordMap[dateStr]
                   const isToday = dateStr === today
+                  const isSelected = dateStr === date
+                  const color = rec ? iphColor(rec.iph) : null
                   return (
                     <div
                       key={dateStr}
-                      className={`cal-cell${rec ? ' has-data' : ''}${isToday ? ' today' : ''}`}
-                      title={rec ? `${formatDate(dateStr)}: ${rec.orders} заказов / ${rec.hours}ч = IPH ${rec.iph.toFixed(1)}` : ''}
+                      className={`cal-cell clickable${rec ? ' has-data' : ''}${isToday ? ' today' : ''}${isSelected ? ' selected' : ''}`}
+                      title={rec ? `${formatDate(dateStr)}: ${rec.orders} заказов / ${rec.hours}ч = IPH ${rec.iph.toFixed(1)}` : `Добавить запись за ${formatDate(dateStr)}`}
+                      onClick={() => setDate(dateStr)}
+                      style={rec ? { background: color + '22', borderColor: color + '66' } : undefined}
                     >
                       <span className="cal-day-num">{day}</span>
                       {rec && (
-                        <span className="cal-iph" style={{ color: iphColor(rec.iph) }}>
+                        <span className="cal-iph" style={{ color: color! }}>
                           {rec.iph.toFixed(1)}
                         </span>
                       )}
