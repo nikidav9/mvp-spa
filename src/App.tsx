@@ -7,8 +7,15 @@ interface DayRecord {
   iph: number
 }
 
-const STORAGE_KEY = 'warehouse_iph_records'
-const PLAN_KEY = 'warehouse_iph_plan'
+const STORES = [
+  { key: 'slavyansky', name: 'Славянский бул. 5к1' },
+  { key: 'tallinskaya', name: 'Таллинская 14' },
+  { key: 'pyatnitskaya', name: 'Пятницкая 11' },
+]
+
+const SELECTED_STORE_KEY = 'warehouse_selected_store'
+const recordsKey = (store: string) => `warehouse_iph_records_${store}`
+const planKey = (store: string) => `warehouse_iph_plan_${store}`
 
 function toDateStr(d: Date): string {
   return d.toISOString().slice(0, 10)
@@ -24,7 +31,7 @@ function getDaysInMonth(year: number, month: number): number {
 }
 
 function getFirstDayOfMonth(year: number, month: number): number {
-  let d = new Date(year, month, 1).getDay()
+  const d = new Date(year, month, 1).getDay()
   return d === 0 ? 6 : d - 1
 }
 
@@ -40,15 +47,24 @@ function avgColor(avg: number, plan: number): string {
   return '#ef4444'
 }
 
+function loadRecords(store: string): DayRecord[] {
+  try {
+    const raw = localStorage.getItem(recordsKey(store))
+    return raw ? JSON.parse(raw) : []
+  } catch { return [] }
+}
+
+function loadPlan(store: string): number | null {
+  const v = localStorage.getItem(planKey(store))
+  return v ? parseFloat(v) : null
+}
+
 export default function App() {
-  const [records, setRecords] = useState<DayRecord[]>(() => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY)
-      return raw ? JSON.parse(raw) : []
-    } catch {
-      return []
-    }
-  })
+  const [selectedStore, setSelectedStore] = useState(() =>
+    localStorage.getItem(SELECTED_STORE_KEY) || STORES[0].key
+  )
+
+  const [records, setRecords] = useState<DayRecord[]>(() => loadRecords(selectedStore))
 
   const today = toDateStr(new Date())
   const [date, setDate] = useState(today)
@@ -59,40 +75,45 @@ export default function App() {
   const [error, setError] = useState('')
   const [saved, setSaved] = useState(false)
 
-  function calcShiftHours(start: string, end: string): number | null {
-    if (!start || !end) return null
-    const [sh, sm] = start.split(':').map(Number)
-    const [eh, em] = end.split(':').map(Number)
-    let mins = (eh * 60 + em) - (sh * 60 + sm)
-    if (mins <= 0) mins += 24 * 60
-    return Math.round(mins / 60 * 100) / 100
-  }
-
-  const [plan, setPlan] = useState<number | null>(() => {
-    const v = localStorage.getItem(PLAN_KEY)
-    return v ? parseFloat(v) : null
-  })
+  const [plan, setPlan] = useState<number | null>(() => loadPlan(selectedStore))
   const [planInput, setPlanInput] = useState(() => {
-    const v = localStorage.getItem(PLAN_KEY)
-    return v ? v : ''
+    const v = localStorage.getItem(planKey(selectedStore))
+    return v ?? ''
   })
   const [editingPlan, setEditingPlan] = useState(false)
 
   const [calYear, setCalYear] = useState(() => new Date().getFullYear())
   const [calMonth, setCalMonth] = useState(() => new Date().getMonth())
 
+  // Switch store: reload records and plan
+  function switchStore(key: string) {
+    setSelectedStore(key)
+    localStorage.setItem(SELECTED_STORE_KEY, key)
+    setRecords(loadRecords(key))
+    const p = loadPlan(key)
+    setPlan(p)
+    setPlanInput(p !== null ? String(p) : '')
+    setEditingPlan(false)
+    setOrders('')
+    setHours('')
+    setShiftStart('')
+    setShiftEnd('')
+    setError('')
+    setDate(today)
+  }
+
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(records))
-  }, [records])
+    localStorage.setItem(recordsKey(selectedStore), JSON.stringify(records))
+  }, [records, selectedStore])
 
   function savePlan() {
     const v = parseFloat(planInput)
     if (v > 0) {
       setPlan(v)
-      localStorage.setItem(PLAN_KEY, String(v))
+      localStorage.setItem(planKey(selectedStore), String(v))
     } else {
       setPlan(null)
-      localStorage.removeItem(PLAN_KEY)
+      localStorage.removeItem(planKey(selectedStore))
     }
     setEditingPlan(false)
   }
@@ -107,6 +128,15 @@ export default function App() {
     for (const r of records) m[r.date] = r
     return m
   }, [records])
+
+  function calcShiftHours(start: string, end: string): number | null {
+    if (!start || !end) return null
+    const [sh, sm] = start.split(':').map(Number)
+    const [eh, em] = end.split(':').map(Number)
+    let mins = (eh * 60 + em) - (sh * 60 + sm)
+    if (mins <= 0) mins += 24 * 60
+    return Math.round(mins / 60 * 100) / 100
+  }
 
   const shiftHours = calcShiftHours(shiftStart, shiftEnd) ?? 0
 
@@ -124,7 +154,7 @@ export default function App() {
   function handleSave() {
     const o = parseFloat(orders)
     if (!date) { setError('Укажите дату'); return }
-    if (!o || o <= 0) { setError('Укажите количество заказов'); return }
+    if (!o || o <= 0) { setError('Укажите количество штучек'); return }
     if (totalHours <= 0) { setError('Укажите рабочее время'); return }
     setError('')
     const iph = o / totalHours
@@ -162,22 +192,37 @@ export default function App() {
   }
 
   const sortedRecords = [...records].sort((a, b) => b.date.localeCompare(a.date))
+  const storeName = STORES.find(s => s.key === selectedStore)?.name ?? ''
 
   return (
     <div className="app">
       <header className="header">
         <div className="header-inner">
           <h1>📦 IPH Калькулятор склада</h1>
-          <p className="subtitle">IPH = Заказы за день / Рабочее время</p>
+          <p className="subtitle">IPH = Штучки за день / Рабочее время</p>
         </div>
       </header>
+
+      <div className="store-bar">
+        <div className="store-bar-inner">
+          {STORES.map(s => (
+            <button
+              key={s.key}
+              className={`store-tab${selectedStore === s.key ? ' active' : ''}`}
+              onClick={() => switchStore(s.key)}
+            >
+              {s.name}
+            </button>
+          ))}
+        </div>
+      </div>
 
       <main className="main">
         <div className="grid-layout">
           <div className="left-col">
             {avg !== null && (
               <div className="avg-card">
-                <div className="avg-label">Средний IPH</div>
+                <div className="avg-label">Средний IPH · {storeName}</div>
                 <div className="avg-value" style={{ color: plan !== null ? avgColor(avg, plan) : iphColor(avg) }}>
                   {avg.toFixed(1)}
                 </div>
@@ -218,7 +263,7 @@ export default function App() {
                 <input type="date" value={date} onChange={e => setDate(e.target.value)} max={today} />
               </div>
               <div className="form-group">
-                <label>Собрано заказов</label>
+                <label>Количество штучек</label>
                 <input
                   type="number"
                   min="1"
@@ -228,7 +273,7 @@ export default function App() {
                 />
               </div>
               <div className="form-group">
-                <label>Яндекс смена <span className="label-hint">(Введите диапазон часов, которую работал сотрудник / была открыта смена)</span></label>
+                <label>Рабочее время Яндекс Смены <span className="label-hint">(Введите диапазон часов, которую работал сотрудник / была открыта смена)</span></label>
                 <div className="shift-row">
                   <input
                     type="time"
@@ -264,7 +309,7 @@ export default function App() {
               )}
               {previewIph !== null && (
                 <div className="preview-iph">
-                  IPH = <strong style={{ color: iphColor(previewIph) }}>{previewIph.toFixed(1)}</strong>
+                  IPH = <strong style={{ color: plan !== null ? avgColor(previewIph, plan) : iphColor(previewIph) }}>{previewIph.toFixed(1)}</strong>
                 </div>
               )}
               {error && <div className="error">{error}</div>}
@@ -304,7 +349,7 @@ export default function App() {
                     <div
                       key={dateStr}
                       className={`cal-cell clickable${rec ? ' has-data' : ''}${isToday ? ' today' : ''}${isSelected ? ' selected' : ''}`}
-                      title={rec ? `${formatDate(dateStr)}: ${rec.orders} заказов / ${rec.hours}ч = IPH ${rec.iph.toFixed(1)}` : `Добавить запись за ${formatDate(dateStr)}`}
+                      title={rec ? `${formatDate(dateStr)}: ${rec.orders} шт / ${rec.hours}ч = IPH ${rec.iph.toFixed(1)}` : `Добавить запись за ${formatDate(dateStr)}`}
                       onClick={() => setDate(dateStr)}
                       style={rec ? { background: color + '22', borderColor: color + '66' } : undefined}
                     >
@@ -324,13 +369,13 @@ export default function App() {
 
         {sortedRecords.length > 0 && (
           <div className="card table-card">
-            <h2>История по дням</h2>
+            <h2>История по дням — {storeName}</h2>
             <div className="table-wrapper">
               <table>
                 <thead>
                   <tr>
                     <th>Дата</th>
-                    <th>Заказов</th>
+                    <th>Штучек</th>
                     <th>Часов</th>
                     <th>IPH</th>
                     <th></th>
