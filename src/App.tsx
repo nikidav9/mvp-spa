@@ -1,5 +1,4 @@
 import { useState, useEffect, useMemo } from 'react'
-import { supabase } from './supabase'
 
 interface DayRecord {
   date: string
@@ -70,11 +69,18 @@ export default function App() {
 
   async function loadStoreData(store: string) {
     setLoading(true)
-    const [{ data: recs }, { data: planRow }] = await Promise.all([
-      supabase.from('iph_records').select('*').eq('store', store).order('date'),
-      supabase.from('iph_plans').select('*').eq('store', store).maybeSingle(),
+    const [recsRes, planRes] = await Promise.all([
+      fetch(`/api/records.php?store=${store}`),
+      fetch(`/api/plans.php?store=${store}`),
     ])
-    setRecords((recs ?? []).map(r => ({ date: r.date, orders: r.orders, hours: r.hours, iph: r.iph })))
+    const recs = await recsRes.json()
+    const planRow = await planRes.json()
+    setRecords((recs ?? []).map((r: any) => ({
+      date: r.date,
+      orders: +r.orders,
+      hours: +r.hours,
+      iph: +r.iph,
+    })))
     const p = planRow?.value ?? null
     setPlan(p)
     setPlanInput(p !== null ? String(p) : '')
@@ -99,10 +105,18 @@ export default function App() {
     setEditingPlan(false)
     if (v > 0) {
       setPlan(v)
-      await supabase.from('iph_plans').upsert({ store: selectedStore, value: v }, { onConflict: 'store' })
+      fetch('/api/plans.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ store: selectedStore, value: v }),
+      })
     } else {
       setPlan(null)
-      await supabase.from('iph_plans').delete().eq('store', selectedStore)
+      fetch('/api/plans.php', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ store: selectedStore }),
+      })
     }
   }
 
@@ -133,7 +147,6 @@ export default function App() {
     if (totalHours <= 0) { setError('Укажите рабочее время'); return }
     setError('')
     const iph = o / totalHours
-    // Обновляем UI сразу, не ждём ответа от базы
     setRecords(prev => {
       const filtered = prev.filter(r => r.date !== date)
       return [...filtered, { date, orders: o, hours: totalHours, iph }].sort((a, b) => a.date.localeCompare(b.date))
@@ -141,18 +154,21 @@ export default function App() {
     setOrders(''); setHours(''); setShiftHoursInput(''); setDate(today)
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
-    // Сохраняем в базу в фоне
-    const { error: err } = await supabase.from('iph_records').upsert(
-      { store: selectedStore, date, orders: o, hours: totalHours, iph },
-      { onConflict: 'store,date' }
-    )
-    if (err) setError('Ошибка сохранения: ' + err.message)
+    const res = await fetch('/api/records.php', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ store: selectedStore, date, orders: o, hours: totalHours, iph }),
+    })
+    if (!res.ok) setError('Ошибка сохранения')
   }
 
   async function handleDelete(dateStr: string) {
-    // Удаляем из UI сразу, не ждём ответа от базы
     setRecords(prev => prev.filter(r => r.date !== dateStr))
-    supabase.from('iph_records').delete().eq('store', selectedStore).eq('date', dateStr)
+    fetch('/api/records.php', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ store: selectedStore, date: dateStr }),
+    })
   }
 
   const daysInMonth = getDaysInMonth(calYear, calMonth)

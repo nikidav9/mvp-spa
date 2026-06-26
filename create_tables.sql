@@ -1,0 +1,15 @@
+CREATE TABLE IF NOT EXISTS iph_records (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  store VARCHAR(50) NOT NULL,
+  date DATE NOT NULL,
+  orders FLOAT NOT NULL,
+  hours FLOAT NOT NULL,
+  iph FLOAT NOT NULL,
+  UNIQUE KEY store_date (store, date)
+);
+
+CREATE TABLE IF NOT EXISTS iph_plans (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  store VARCHAR(50) NOT NULL UNIQUE,
+  value FLOAT NOT NULL
+);

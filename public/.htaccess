@@ -1,0 +1,10 @@
+Options -MultiViews
+RewriteEngine On
+
+# Реальные файлы и папки отдаём как есть (включая /api/)
+RewriteCond %{REQUEST_FILENAME} -f [OR]
+RewriteCond %{REQUEST_FILENAME} -d
+RewriteRule ^ - [L]
+
+# Всё остальное → index.html (SPA)
+RewriteRule ^ index.html [L]
