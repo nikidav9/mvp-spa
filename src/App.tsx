@@ -71,8 +71,7 @@ export default function App() {
   const [date, setDate] = useState(today)
   const [orders, setOrders] = useState('')
   const [hours, setHours] = useState('')
-  const [shiftStart, setShiftStart] = useState('')
-  const [shiftEnd, setShiftEnd] = useState('')
+  const [shiftHoursInput, setShiftHoursInput] = useState('')
   const [error, setError] = useState('')
   const [saved, setSaved] = useState(false)
 
@@ -97,8 +96,7 @@ export default function App() {
     setEditingPlan(false)
     setOrders('')
     setHours('')
-    setShiftStart('')
-    setShiftEnd('')
+    setShiftHoursInput('')
     setError('')
     setDate(today)
   }
@@ -130,16 +128,7 @@ export default function App() {
     return m
   }, [records])
 
-  function calcShiftHours(start: string, end: string): number | null {
-    if (!start || !end) return null
-    const [sh, sm] = start.split(':').map(Number)
-    const [eh, em] = end.split(':').map(Number)
-    let mins = (eh * 60 + em) - (sh * 60 + sm)
-    if (mins <= 0) mins += 24 * 60
-    return Math.round(mins / 60 * 100) / 100
-  }
-
-  const shiftHours = calcShiftHours(shiftStart, shiftEnd) ?? 0
+  const shiftHours = parseFloat(shiftHoursInput) || 0
 
   const totalHours = useMemo(() => {
     const h = parseFloat(hours) || 0
@@ -165,8 +154,7 @@ export default function App() {
     })
     setOrders('')
     setHours('')
-    setShiftStart('')
-    setShiftEnd('')
+    setShiftHoursInput('')
     setDate(today)
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
@@ -274,23 +262,15 @@ export default function App() {
                 />
               </div>
               <div className="form-group">
-                <label>Рабочее время Яндекс Смены <span className="label-hint">(Введите диапазон часов, которую работал сотрудник / была открыта смена)</span></label>
-                <div className="shift-row">
-                  <input
-                    type="time"
-                    value={shiftStart}
-                    onChange={e => setShiftStart(e.target.value)}
-                  />
-                  <span className="shift-sep">—</span>
-                  <input
-                    type="time"
-                    value={shiftEnd}
-                    onChange={e => setShiftEnd(e.target.value)}
-                  />
-                  {shiftHours > 0 && (
-                    <span className="shift-calc">{shiftHours} ч</span>
-                  )}
-                </div>
+                <label>Рабочее время Яндекс Смены <span className="label-hint">(необязательно)</span></label>
+                <input
+                  type="number"
+                  min="0.5"
+                  step="0.5"
+                  placeholder="например, 9"
+                  value={shiftHoursInput}
+                  onChange={e => setShiftHoursInput(e.target.value)}
+                />
               </div>
               <div className="form-group">
                 <label>Рабочее время (часы штатных сотрудников)</label>
