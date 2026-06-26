@@ -11,6 +11,7 @@ const STORES = [
   { key: 'slavyansky', name: 'Славянский бул. 5к1' },
   { key: 'tallinskaya', name: 'Таллинская 14' },
   { key: 'pyatnitskaya', name: 'Пятницкая 11' },
+  { key: 'vasilevskogo', name: 'Васильевского 17' },
 ]
 
 const SELECTED_STORE_KEY = 'warehouse_selected_store'
