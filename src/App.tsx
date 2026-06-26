@@ -130,11 +130,7 @@ export default function App() {
     if (totalHours <= 0) { setError('Укажите рабочее время'); return }
     setError('')
     const iph = o / totalHours
-    const { error: err } = await supabase.from('iph_records').upsert(
-      { store: selectedStore, date, orders: o, hours: totalHours, iph },
-      { onConflict: 'store,date' }
-    )
-    if (err) { setError('Ошибка сохранения: ' + err.message); return }
+    // Обновляем UI сразу, не ждём ответа от базы
     setRecords(prev => {
       const filtered = prev.filter(r => r.date !== date)
       return [...filtered, { date, orders: o, hours: totalHours, iph }].sort((a, b) => a.date.localeCompare(b.date))
@@ -142,11 +138,18 @@ export default function App() {
     setOrders(''); setHours(''); setShiftHoursInput(''); setDate(today)
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
+    // Сохраняем в базу в фоне
+    const { error: err } = await supabase.from('iph_records').upsert(
+      { store: selectedStore, date, orders: o, hours: totalHours, iph },
+      { onConflict: 'store,date' }
+    )
+    if (err) setError('Ошибка сохранения: ' + err.message)
   }
 
   async function handleDelete(dateStr: string) {
-    await supabase.from('iph_records').delete().eq('store', selectedStore).eq('date', dateStr)
+    // Удаляем из UI сразу, не ждём ответа от базы
     setRecords(prev => prev.filter(r => r.date !== dateStr))
+    supabase.from('iph_records').delete().eq('store', selectedStore).eq('date', dateStr)
   }
 
   const daysInMonth = getDaysInMonth(calYear, calMonth)
@@ -186,10 +189,13 @@ export default function App() {
       </div>
 
       <main className="main">
-        {loading && <div className="loading">Загрузка...</div>}
-
         <div className="grid-layout">
           <div className="left-col">
+            {loading && avg === null && (
+              <div className="avg-card" style={{ textAlign: 'center', color: 'var(--text2)' }}>
+                <div className="avg-label">Загрузка данных...</div>
+              </div>
+            )}
             {avg !== null && (
               <div className="avg-card">
                 <div className="avg-label">Средний IPH · {storeName}</div>
