@@ -26,6 +26,13 @@ body {
   flex-direction: column;
 }
 
+.loading {
+  text-align: center;
+  padding: 20px;
+  color: var(--text2);
+  font-size: 0.9rem;
+}
+
 .store-bar {
   background: var(--bg2);
   border-bottom: 1px solid var(--border);

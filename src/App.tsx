@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
+import { supabase } from './supabase'
 
 interface DayRecord {
   date: string
@@ -15,8 +16,6 @@ const STORES = [
 ]
 
 const SELECTED_STORE_KEY = 'warehouse_selected_store'
-const recordsKey = (store: string) => `warehouse_iph_records_${store}`
-const planKey = (store: string) => `warehouse_iph_plan_${store}`
 
 function toDateStr(d: Date): string {
   return d.toISOString().slice(0, 10)
@@ -48,24 +47,15 @@ function avgColor(avg: number, plan: number): string {
   return '#ef4444'
 }
 
-function loadRecords(store: string): DayRecord[] {
-  try {
-    const raw = localStorage.getItem(recordsKey(store))
-    return raw ? JSON.parse(raw) : []
-  } catch { return [] }
-}
-
-function loadPlan(store: string): number | null {
-  const v = localStorage.getItem(planKey(store))
-  return v ? parseFloat(v) : null
-}
-
 export default function App() {
   const [selectedStore, setSelectedStore] = useState(() =>
     localStorage.getItem(SELECTED_STORE_KEY) || STORES[0].key
   )
-
-  const [records, setRecords] = useState<DayRecord[]>(() => loadRecords(selectedStore))
+  const [records, setRecords] = useState<DayRecord[]>([])
+  const [plan, setPlan] = useState<number | null>(null)
+  const [planInput, setPlanInput] = useState('')
+  const [editingPlan, setEditingPlan] = useState(false)
+  const [loading, setLoading] = useState(true)
 
   const today = toDateStr(new Date())
   const [date, setDate] = useState(today)
@@ -75,46 +65,42 @@ export default function App() {
   const [error, setError] = useState('')
   const [saved, setSaved] = useState(false)
 
-  const [plan, setPlan] = useState<number | null>(() => loadPlan(selectedStore))
-  const [planInput, setPlanInput] = useState(() => {
-    const v = localStorage.getItem(planKey(selectedStore))
-    return v ?? ''
-  })
-  const [editingPlan, setEditingPlan] = useState(false)
-
   const [calYear, setCalYear] = useState(() => new Date().getFullYear())
   const [calMonth, setCalMonth] = useState(() => new Date().getMonth())
 
-  // Switch store: reload records and plan
-  function switchStore(key: string) {
-    setSelectedStore(key)
-    localStorage.setItem(SELECTED_STORE_KEY, key)
-    setRecords(loadRecords(key))
-    const p = loadPlan(key)
+  async function loadStoreData(store: string) {
+    setLoading(true)
+    const [{ data: recs }, { data: planRow }] = await Promise.all([
+      supabase.from('iph_records').select('*').eq('store', store).order('date'),
+      supabase.from('iph_plans').select('*').eq('store', store).maybeSingle(),
+    ])
+    setRecords((recs ?? []).map(r => ({ date: r.date, orders: r.orders, hours: r.hours, iph: r.iph })))
+    const p = planRow?.value ?? null
     setPlan(p)
     setPlanInput(p !== null ? String(p) : '')
-    setEditingPlan(false)
-    setOrders('')
-    setHours('')
-    setShiftHoursInput('')
-    setError('')
-    setDate(today)
+    setLoading(false)
   }
 
   useEffect(() => {
-    localStorage.setItem(recordsKey(selectedStore), JSON.stringify(records))
-  }, [records, selectedStore])
+    loadStoreData(selectedStore)
+  }, [selectedStore])
 
-  function savePlan() {
+  function switchStore(key: string) {
+    setSelectedStore(key)
+    localStorage.setItem(SELECTED_STORE_KEY, key)
+    setOrders(''); setHours(''); setShiftHoursInput(''); setError(''); setDate(today)
+  }
+
+  async function savePlan() {
     const v = parseFloat(planInput)
+    setEditingPlan(false)
     if (v > 0) {
       setPlan(v)
-      localStorage.setItem(planKey(selectedStore), String(v))
+      await supabase.from('iph_plans').upsert({ store: selectedStore, value: v }, { onConflict: 'store' })
     } else {
       setPlan(null)
-      localStorage.removeItem(planKey(selectedStore))
+      await supabase.from('iph_plans').delete().eq('store', selectedStore)
     }
-    setEditingPlan(false)
   }
 
   const avg = useMemo(() => {
@@ -129,11 +115,7 @@ export default function App() {
   }, [records])
 
   const shiftHours = parseFloat(shiftHoursInput) || 0
-
-  const totalHours = useMemo(() => {
-    const h = parseFloat(hours) || 0
-    return h + shiftHours
-  }, [hours, shiftHours])
+  const totalHours = useMemo(() => (parseFloat(hours) || 0) + shiftHours, [hours, shiftHours])
 
   const previewIph = useMemo(() => {
     const o = parseFloat(orders)
@@ -141,34 +123,35 @@ export default function App() {
     return null
   }, [orders, totalHours])
 
-  function handleSave() {
+  async function handleSave() {
     const o = parseFloat(orders)
     if (!date) { setError('Укажите дату'); return }
     if (!o || o <= 0) { setError('Укажите количество штучек'); return }
     if (totalHours <= 0) { setError('Укажите рабочее время'); return }
     setError('')
     const iph = o / totalHours
+    const { error: err } = await supabase.from('iph_records').upsert(
+      { store: selectedStore, date, orders: o, hours: totalHours, iph },
+      { onConflict: 'store,date' }
+    )
+    if (err) { setError('Ошибка сохранения: ' + err.message); return }
     setRecords(prev => {
       const filtered = prev.filter(r => r.date !== date)
       return [...filtered, { date, orders: o, hours: totalHours, iph }].sort((a, b) => a.date.localeCompare(b.date))
     })
-    setOrders('')
-    setHours('')
-    setShiftHoursInput('')
-    setDate(today)
+    setOrders(''); setHours(''); setShiftHoursInput(''); setDate(today)
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
   }
 
-  function handleDelete(dateStr: string) {
+  async function handleDelete(dateStr: string) {
+    await supabase.from('iph_records').delete().eq('store', selectedStore).eq('date', dateStr)
     setRecords(prev => prev.filter(r => r.date !== dateStr))
   }
 
   const daysInMonth = getDaysInMonth(calYear, calMonth)
   const firstDay = getFirstDayOfMonth(calYear, calMonth)
-
-  const monthNames = ['Январь','Февраль','Март','Апрель','Май','Июнь',
-    'Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь']
+  const monthNames = ['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь']
   const dayNames = ['Пн','Вт','Ср','Чт','Пт','Сб','Вс']
 
   function prevMonth() {
@@ -195,11 +178,7 @@ export default function App() {
       <div className="store-bar">
         <div className="store-bar-inner">
           {STORES.map(s => (
-            <button
-              key={s.key}
-              className={`store-tab${selectedStore === s.key ? ' active' : ''}`}
-              onClick={() => switchStore(s.key)}
-            >
+            <button key={s.key} className={`store-tab${selectedStore === s.key ? ' active' : ''}`} onClick={() => switchStore(s.key)}>
               {s.name}
             </button>
           ))}
@@ -207,6 +186,8 @@ export default function App() {
       </div>
 
       <main className="main">
+        {loading && <div className="loading">Загрузка...</div>}
+
         <div className="grid-layout">
           <div className="left-col">
             {avg !== null && (
@@ -220,13 +201,7 @@ export default function App() {
                 <div className="plan-row">
                   <span className="plan-label">План</span>
                   {editingPlan ? (
-                    <input
-                      className="plan-input"
-                      type="number"
-                      min="1"
-                      step="0.1"
-                      autoFocus
-                      value={planInput}
+                    <input className="plan-input" type="number" min="1" step="0.1" autoFocus value={planInput}
                       onChange={e => setPlanInput(e.target.value)}
                       onBlur={savePlan}
                       onKeyDown={e => { if (e.key === 'Enter') savePlan(); if (e.key === 'Escape') setEditingPlan(false) }}
@@ -237,7 +212,7 @@ export default function App() {
                     </button>
                   )}
                 </div>
-                {plan !== null && avg !== null && (
+                {plan !== null && (
                   <div className="plan-diff" style={{ color: avgColor(avg, plan) }}>
                     {avg >= plan ? `+${(avg - plan).toFixed(1)} выше плана` : `${(avg - plan).toFixed(1)} ниже плана`}
                   </div>
@@ -253,40 +228,18 @@ export default function App() {
               </div>
               <div className="form-group">
                 <label>Количество штучек</label>
-                <input
-                  type="number"
-                  min="1"
-                  placeholder="например, 150"
-                  value={orders}
-                  onChange={e => setOrders(e.target.value)}
-                />
+                <input type="number" min="1" placeholder="например, 150" value={orders} onChange={e => setOrders(e.target.value)} />
               </div>
               <div className="form-group">
                 <label>Рабочее время Яндекс Смены <span className="label-hint">(необязательно)</span></label>
-                <input
-                  type="number"
-                  min="0.5"
-                  step="0.5"
-                  placeholder="например, 9"
-                  value={shiftHoursInput}
-                  onChange={e => setShiftHoursInput(e.target.value)}
-                />
+                <input type="number" min="0.5" step="0.5" placeholder="например, 9" value={shiftHoursInput} onChange={e => setShiftHoursInput(e.target.value)} />
               </div>
               <div className="form-group">
                 <label>Рабочее время (часы штатных сотрудников)</label>
-                <input
-                  type="number"
-                  min="0.5"
-                  step="0.5"
-                  placeholder="например, 8"
-                  value={hours}
-                  onChange={e => setHours(e.target.value)}
-                />
+                <input type="number" min="0.5" step="0.5" placeholder="например, 8" value={hours} onChange={e => setHours(e.target.value)} />
               </div>
               {shiftHours > 0 && (parseFloat(hours) || 0) > 0 && (
-                <div className="total-hours">
-                  Итого часов: <strong>{totalHours}</strong>
-                </div>
+                <div className="total-hours">Итого часов: <strong>{totalHours}</strong></div>
               )}
               {previewIph !== null && (
                 <div className="preview-iph">
@@ -298,9 +251,7 @@ export default function App() {
                 {saved ? '✓ Сохранено!' : 'Сохранить'}
               </button>
               {recordMap[date] && (
-                <div className="existing-note">
-                  Запись за {formatDate(date)} уже есть — будет перезаписана
-                </div>
+                <div className="existing-note">Запись за {formatDate(date)} уже есть — будет перезаписана</div>
               )}
             </div>
           </div>
@@ -313,12 +264,8 @@ export default function App() {
                 <button className="cal-nav" onClick={nextMonth}>›</button>
               </div>
               <div className="cal-grid">
-                {dayNames.map(d => (
-                  <div key={d} className="cal-day-name">{d}</div>
-                ))}
-                {Array.from({ length: firstDay }).map((_, i) => (
-                  <div key={`empty-${i}`} className="cal-cell empty" />
-                ))}
+                {dayNames.map(d => <div key={d} className="cal-day-name">{d}</div>)}
+                {Array.from({ length: firstDay }).map((_, i) => <div key={`e-${i}`} className="cal-cell empty" />)}
                 {Array.from({ length: daysInMonth }).map((_, i) => {
                   const day = i + 1
                   const dateStr = `${calYear}-${String(calMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
@@ -327,19 +274,14 @@ export default function App() {
                   const isSelected = dateStr === date
                   const color = rec ? (plan !== null ? avgColor(rec.iph, plan) : iphColor(rec.iph)) : null
                   return (
-                    <div
-                      key={dateStr}
+                    <div key={dateStr}
                       className={`cal-cell clickable${rec ? ' has-data' : ''}${isToday ? ' today' : ''}${isSelected ? ' selected' : ''}`}
-                      title={rec ? `${formatDate(dateStr)}: ${rec.orders} шт / ${rec.hours}ч = IPH ${rec.iph.toFixed(1)}` : `Добавить запись за ${formatDate(dateStr)}`}
+                      title={rec ? `${formatDate(dateStr)}: ${rec.orders} шт / ${rec.hours}ч = IPH ${rec.iph.toFixed(1)}` : `Добавить за ${formatDate(dateStr)}`}
                       onClick={() => setDate(dateStr)}
                       style={rec ? { background: color + '22', borderColor: color + '66' } : undefined}
                     >
                       <span className="cal-day-num">{day}</span>
-                      {rec && (
-                        <span className="cal-iph" style={{ color: color! }}>
-                          {rec.iph.toFixed(1)}
-                        </span>
-                      )}
+                      {rec && <span className="cal-iph" style={{ color: color! }}>{rec.iph.toFixed(1)}</span>}
                     </div>
                   )
                 })}
@@ -354,13 +296,7 @@ export default function App() {
             <div className="table-wrapper">
               <table>
                 <thead>
-                  <tr>
-                    <th>Дата</th>
-                    <th>Штучек</th>
-                    <th>Часов</th>
-                    <th>IPH</th>
-                    <th></th>
-                  </tr>
+                  <tr><th>Дата</th><th>Штучек</th><th>Часов</th><th>IPH</th><th></th></tr>
                 </thead>
                 <tbody>
                   {sortedRecords.map(r => (
@@ -373,9 +309,7 @@ export default function App() {
                           {r.iph.toFixed(1)}
                         </span>
                       </td>
-                      <td>
-                        <button className="btn-delete" onClick={() => handleDelete(r.date)} title="Удалить">✕</button>
-                      </td>
+                      <td><button className="btn-delete" onClick={() => handleDelete(r.date)} title="Удалить">✕</button></td>
                     </tr>
                   ))}
                 </tbody>
