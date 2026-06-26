@@ -89,6 +89,9 @@ export default function App() {
     setSelectedStore(key)
     localStorage.setItem(SELECTED_STORE_KEY, key)
     setOrders(''); setHours(''); setShiftHoursInput(''); setError(''); setDate(today)
+    setRecords([])
+    setPlan(null)
+    setPlanInput('')
   }
 
   async function savePlan() {
